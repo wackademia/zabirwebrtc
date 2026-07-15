@@ -1,0 +1,14 @@
+{
+  "name": "webrtc-ch1-4-demo",
+  "version": "1.0.0",
+  "description": "Two-browser WebRTC video call built from Chapters 1-4 concepts: getUserMedia, RTCPeerConnection, and a real socket.io signaling server.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "node-static": "^0.7.11",
+    "socket.io": "^4.7.5"
+  }
+}

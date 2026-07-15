@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: webrtc-signaling
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start

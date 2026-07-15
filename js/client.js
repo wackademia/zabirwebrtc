@@ -9,7 +9,7 @@ var localStream;
 var peerConnection;
 var room;
 var isInitiator = false;
-        
+
 // STUN-only fallback, used until (unless) TURN credentials load successfully.
 // A STUN server just tells you your own public IP:port — it can't relay
 // media, so calls across two different home ISPs/NATs may fail to connect
@@ -33,7 +33,21 @@ function loadTurnCredentials() {
 
     return fetch(url)
         .then(function (response) { return response.json(); })
-        .then(function (iceServers) {
+        .then(function (data) {
+            // The API is documented to return a bare array of ICE servers,
+            // but defend against it coming back wrapped in an object (e.g.
+            // {iceServers: [...]}) or as an error payload, so a shape we
+            // don't expect degrades to STUN-only instead of silently
+            // breaking RTCPeerConnection creation later.
+            var iceServers = Array.isArray(data) ? data
+                : Array.isArray(data && data.iceServers) ? data.iceServers
+                : null;
+
+            if (!iceServers) {
+                log('TURN response was not a valid iceServers array, falling back ' +
+                    'to STUN only. Raw response: ' + JSON.stringify(data));
+                return;
+            }
             rtcConfig.iceServers = iceServers;
             log('TURN credentials loaded (' + iceServers.length + ' ICE servers).');
         })
@@ -81,7 +95,6 @@ socket.on('created', function () {
 });
 
 socket.on('joined', function () {
-
     isInitiator = false;
     log('Joined existing room.');
 });
@@ -92,12 +105,23 @@ socket.on('full', function () {
 
 socket.on('ready', function () {
     log('Peer connected. Starting call...');
-    startPeerConnection();
-    if (isInitiator) createOffer();
+    try {
+        startPeerConnection();
+        if (isInitiator) createOffer();
+    } catch (error) {
+        log('Failed to start the call: ' + error);
+    }
 });
 
 socket.on('message', function (payload) {
-    if (!peerConnection) startPeerConnection();
+    if (!peerConnection) {
+        try {
+            startPeerConnection();
+        } catch (error) {
+            log('Failed to start the call: ' + error);
+            return;
+        }
+    }
 
     if (payload.type === 'offer') {
         peerConnection.setRemoteDescription(new RTCSessionDescription(payload))
@@ -128,7 +152,16 @@ hangupButton.onclick = function () {
 };
 
 function startPeerConnection() {
-    peerConnection = new RTCPeerConnection(rtcConfig);
+    try {
+        peerConnection = new RTCPeerConnection(rtcConfig);
+    } catch (error) {
+        // If rtcConfig ever ends up malformed again, fall back to STUN-only
+        // instead of throwing and leaving the UI stuck (Hang Up disabled,
+        // no remote video, no error visible anywhere).
+        log('RTCPeerConnection failed with current ICE config (' + error +
+            '), retrying with STUN only.');
+        peerConnection = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+    }
 
     peerConnection.onicecandidate = function (event) {
         if (event.candidate) {

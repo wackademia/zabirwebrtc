@@ -2,7 +2,7 @@ var http = require('http');
 var fs = require('fs');
 var path = require('path');
 var socketIO = require('socket.io');
-require('dotenv').config(); // loads .env locally; no-op if the file doesn't exist (e.g. on Render)
+require('dotenv').config();
 
 var PORT = process.env.PORT || 8181;
 
@@ -13,10 +13,7 @@ var MIME_TYPES = {
     '.ico': 'image/x-icon'
 };
 
-// Builds js/turn-config.js on the fly from environment variables, instead
-// of it being a committed file with the Metered secret key baked in.
-// Locally: set METERED_APP_NAME / METERED_API_KEY in a .env file (gitignored).
-// On Render: set the same two variables under the service's Environment tab.
+// Serves js/turn-config.js dynamically from env vars (see PDF guide).
 function serveTurnConfig(res) {
     var appName = process.env.METERED_APP_NAME || '';
     var apiKey = process.env.METERED_API_KEY || '';
@@ -26,14 +23,10 @@ function serveTurnConfig(res) {
     res.end(body);
 }
 
-// Minimal static file server for index.html / js/client.js (replaces the
-// old node-static dependency, which crashes on newer Node versions with a
-// "Cannot write headers after they are sent" error under socket.io).
 function serveStaticFile(req, res) {
     var urlPath = req.url.split('?')[0];
     if (urlPath === '/') urlPath = '/index.html';
 
-    // Keep requests confined to this project folder.
     var safePath = path.normalize(urlPath).replace(/^(\.\.[/\\])+/, '');
     var filePath = path.join(__dirname, safePath);
 

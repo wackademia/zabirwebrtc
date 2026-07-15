@@ -10,22 +10,14 @@ var peerConnection;
 var room;
 var isInitiator = false;
 
-// STUN-only fallback, used until (unless) TURN credentials load successfully.
-// A STUN server just tells you your own public IP:port — it can't relay
-// media, so calls across two different home ISPs/NATs may fail to connect
-// with this alone (see README.md's "Why TURN" section).
+// STUN-only fallback until loadTurnCredentials() resolves (see PDF guide).
 var rtcConfig = {
     iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
 };
 
-// Fetches real TURN server credentials from the free Open Relay TURN
-// service (see js/turn-config.js) and replaces rtcConfig.iceServers with
-// them. Resolves either way — falling back to STUN-only if no API key has
-// been configured yet, or if the request fails for any reason.
 function loadTurnCredentials() {
     if (!METERED_APP_NAME || !METERED_API_KEY) {
-        log('No TURN credentials configured (see js/turn-config.js) - ' +
-            'using STUN only. This will likely fail between two different home networks.');
+        log('No TURN credentials configured - using STUN only.');
         return Promise.resolve();
     }
     var url = 'https://' + METERED_APP_NAME +
@@ -34,11 +26,6 @@ function loadTurnCredentials() {
     return fetch(url)
         .then(function (response) { return response.json(); })
         .then(function (data) {
-            // The API is documented to return a bare array of ICE servers,
-            // but defend against it coming back wrapped in an object (e.g.
-            // {iceServers: [...]}) or as an error payload, so a shape we
-            // don't expect degrades to STUN-only instead of silently
-            // breaking RTCPeerConnection creation later.
             var iceServers = Array.isArray(data) ? data
                 : Array.isArray(data && data.iceServers) ? data.iceServers
                 : null;
@@ -56,8 +43,6 @@ function loadTurnCredentials() {
         });
 }
 
-// Kick off the TURN credentials fetch as soon as the page loads, so it's
-// (usually) already resolved by the time the user clicks Join.
 var turnReady = loadTurnCredentials();
 
 var socket = io.connect();
@@ -71,9 +56,6 @@ joinButton.onclick = function () {
     room = roomInput.value.trim();
     if (!room) { alert('Enter a room name first.'); return; }
 
-    // Make sure the TURN fetch has settled (success or fallback) before we
-    // start using rtcConfig, so we never build the RTCPeerConnection with a
-    // half-loaded configuration.
     turnReady
         .then(function () {
             return navigator.mediaDevices.getUserMedia({ audio: true, video: true });
@@ -155,9 +137,6 @@ function startPeerConnection() {
     try {
         peerConnection = new RTCPeerConnection(rtcConfig);
     } catch (error) {
-        // If rtcConfig ever ends up malformed again, fall back to STUN-only
-        // instead of throwing and leaving the UI stuck (Hang Up disabled,
-        // no remote video, no error visible anywhere).
         log('RTCPeerConnection failed with current ICE config (' + error +
             '), retrying with STUN only.');
         peerConnection = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });

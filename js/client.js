@@ -10,37 +10,35 @@ var peerConnection;
 var room;
 var isInitiator = false;
 
-// STUN-only fallback until loadTurnCredentials() resolves (see PDF guide).
+// STUN-only fallback until loadTurnCredentials() resolves.
 var rtcConfig = {
     iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
 };
 
 function loadTurnCredentials() {
-    if (!METERED_APP_NAME || !METERED_API_KEY) {
-        log('No TURN credentials configured - using STUN only.');
+    if (!TURN_HOST || !TURN_USERNAME || !TURN_PASSWORD) {
+        log('No coturn credentials configured - using STUN only.');
         return Promise.resolve();
     }
-    var url = 'https://' + METERED_APP_NAME +
-        '.metered.live/api/v1/turn/credentials?apiKey=' + METERED_API_KEY;
 
-    return fetch(url)
-        .then(function (response) { return response.json(); })
-        .then(function (data) {
-            var iceServers = Array.isArray(data) ? data
-                : Array.isArray(data && data.iceServers) ? data.iceServers
-                : null;
+    var port = TURN_PORT || '3478';
 
-            if (!iceServers) {
-                log('TURN response was not a valid iceServers array, falling back ' +
-                    'to STUN only. Raw response: ' + JSON.stringify(data));
-                return;
-            }
-            rtcConfig.iceServers = iceServers;
-            log('TURN credentials loaded (' + iceServers.length + ' ICE servers).');
-        })
-        .catch(function (error) {
-            log('Failed to load TURN credentials, falling back to STUN only: ' + error);
-        });
+    // coturn serves STUN and TURN on the same port. Offer TURN over both
+    // UDP and TCP so the call still connects on networks that block UDP.
+    rtcConfig.iceServers = [
+        { urls: 'stun:' + TURN_HOST + ':' + port },
+        {
+            urls: [
+                'turn:' + TURN_HOST + ':' + port + '?transport=udp',
+                'turn:' + TURN_HOST + ':' + port + '?transport=tcp'
+            ],
+            username: TURN_USERNAME,
+            credential: TURN_PASSWORD
+        }
+    ];
+
+    log('coturn credentials loaded (' + rtcConfig.iceServers.length + ' ICE servers).');
+    return Promise.resolve();
 }
 
 var turnReady = loadTurnCredentials();

@@ -13,12 +13,16 @@ var MIME_TYPES = {
     '.ico': 'image/x-icon'
 };
 
-// Serves js/turn-config.js dynamically from env vars (see PDF guide).
+
 function serveTurnConfig(res) {
-    var appName = process.env.METERED_APP_NAME || '';
-    var apiKey = process.env.METERED_API_KEY || '';
-    var body = 'var METERED_APP_NAME = ' + JSON.stringify(appName) + ';\n' +
-        'var METERED_API_KEY = ' + JSON.stringify(apiKey) + ';\n';
+    var host = process.env.TURN_HOST || '';
+    var port = process.env.TURN_PORT || '3478';
+    var username = process.env.TURN_USERNAME || '';
+    var password = process.env.TURN_PASSWORD || '';
+    var body = 'var TURN_HOST = ' + JSON.stringify(host) + ';\n' +
+        'var TURN_PORT = ' + JSON.stringify(port) + ';\n' +
+        'var TURN_USERNAME = ' + JSON.stringify(username) + ';\n' +
+        'var TURN_PASSWORD = ' + JSON.stringify(password) + ';\n';
     res.writeHead(200, { 'Content-Type': 'application/javascript' });
     res.end(body);
 }
